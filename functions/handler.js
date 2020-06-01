@@ -1,7 +1,7 @@
 'use strict';
 
 const AWS = require('aws-sdk');
-const db = new AWS.DynamoDB.DocumentClient();
+const db = new AWS.DynamoDB.DocumentClient({region: "eu-central-1"});
 const PNF = require('google-libphonenumber').PhoneNumberFormat;
 const phoneUtil = require('google-libphonenumber').PhoneNumberUtil.getInstance();
 const Mpesa = require('mpesa-node');
@@ -23,24 +23,32 @@ var tinyURL = require('tinyurl');
 const iv = process.env.CRYPTO_IV_KEY;
 const enc_decr_fn = process.env.ENC_DECR_ALGO;
 const  phone_hash_fn = process.env.MSISDN_HASH_ALGO;
+const blockExplorerURL = 'https://jungle.bloks.io';
 
 // AFRICASTALKING API
-const AT_credentials = { apiKey: process.env.AT_SMS_API_KEY, username: process.env.AT_API_USERNAME }
-const AfricasTalking = require('./AT/africastalking')(AT_credentials);
-const sms = AfricasTalking.SMS;
+// const AT_credentials = {
+//   apiKey: process.env.AT_SMS_API_KEY,
+//   username: process.env.AT_API_USERNAME
+// }
 
-// EOSIO NETWORK
+// const AfricasTalking = require('./africastalking')(AT_credentials);
+// const sms = AfricasTalking.SMS;
+
+// EOSIO init
+const bip39 = require('bip39-light');
+const crypto = require('crypto');
 const { Api, JsonRpc, RpcError } = require('eosjs');
 const { JsSignatureProvider } = require('eosjs/dist/eosjs-jssig');
-const fetch = require('node-fetch');
+const fetch = require('node-fetch'); 
 const { TextEncoder, TextDecoder } = require('util');
-const signatureProvider = new JsSignatureProvider([sprivateKey]);
 const nodeUrl = process.env.EOS_NODE_URL;
 const rpc = new JsonRpc(nodeUrl, { fetch });
-const api = new Api({ rpc, signatureProvider, textDecoder: new TextDecoder(), textEncoder: new TextEncoder() });
 
 
-module.exports.eospay = async (event, context) => {
+
+
+
+module.exports.kotaniapi = async (event, context) => {
   var msg = event.body;
   msg = decodeURIComponent(msg);  
   var jsondata = '{"' + msg.replace(/&/g, '", "').replace(/=/g, '": "') + '"}';
@@ -106,19 +114,20 @@ module.exports.eospay = async (event, context) => {
         
         // Retrieve User Blockchain Data
         let senderInfo = await getSenderDetails(senderId);
-        let senderprivkey = await getSenderPrivateKey(senderInfo.Item.seedKey, senderMSISDN, iv)
-        let receiverInfo = await getReceiverDetails(recipientId);
 
+        let senderprivkey = await getSenderPrivateKey(senderInfo.Item.seedKey, senderMSISDN, iv)
+        
+        let receiverInfo = await getReceiverDetails(recipientId);
         let hash = await transfercUSD(senderInfo.Item.publicAddress, senderprivkey, receiverInfo.Item.publicAddress, amount);
         let url = await getTxidUrl(hash);
-        let message2sender = `KES ${amount}  sent to ${receiverMSISDN} Celo Account.
+        let message2sender = `KES ${amount}  sent to ${receiverMSISDN} EOS Account.
           Transaction URL:  ${url}`;
         let message2receiver = `You have received KES ${amount} from ${senderMSISDN} Celo Account.
           Transaction URL:  ${url}`;
-        sendMessage("+"+senderMSISDN, message2sender);
+        // sendMessage("+"+senderMSISDN, message2sender);
         // sendMessage("+"+receiverMSISDN, message2receiver);
 
-        responseBody = `END KES `+amount+` sent to `+receiverMSISDN+` Celo Account
+        responseBody = `END KES `+amount+` sent to `+receiverMSISDN+` EOS Account
         => Transaction Details: ${url}`;        
     } 
     
@@ -130,7 +139,7 @@ module.exports.eospay = async (event, context) => {
         console.log('Deposit Phonenumber: ', depositMSISDN);        
         amount = `${data[1]}`;
         console.log('Amount to send: KES.', amount); 
-        responseBody = `END Depositing KES:  `+amount+` to `+depositMSISDN+` Celo Account`;
+        responseBody = `END Depositing KES:  `+amount+` to `+depositMSISDN+` EOS Account`;
         mpesaSTKpush(depositMSISDN, data[1])    //calling mpesakit library       
     }
 
@@ -146,6 +155,7 @@ module.exports.eospay = async (event, context) => {
         
         responseBody = `END You have withdrawn KES: `+data[1]+` from account: `+phoneNumber.substring(1);        
     }
+
 
 //  5. LOANS and SAVINGS
     else if ( data[0] == '5' && data[1] == null) {
@@ -191,7 +201,7 @@ module.exports.eospay = async (event, context) => {
       let userMSISDN = phoneNumber.substring(1);
       responseBody = `END BuyGoods feature Coming soon`;        
   }
-       
+        
 
 //  7. ACCOUNT DETAILS
     else if ( data[0] == '7' && data[1] == null) {
@@ -232,11 +242,6 @@ module.exports.eospay = async (event, context) => {
 };
 
 module.exports.mpesacallback = async (event, context) => {
-  // var msg = event.body;
-  // msg = decodeURIComponent(msg);  
-  // var jsondata = '{"' + msg.replace(/&/g, '", "').replace(/=/g, '": "') + '"}';
-  // jsondata = JSON.parse(jsondata);    
-  
 // GLOBAL VARIABLES
   let responseBody = "";
   let statusCode = 0;
@@ -247,23 +252,9 @@ module.exports.mpesacallback = async (event, context) => {
   var senderId = ``;
   let amount = ``;
 
-  // const phoneNumber = jsondata.phoneNumber;
-  // // console.log('PhoneNumber => ', phoneNumber);
-  // const text = jsondata.text;
-  // // console.log('Text => ', text);
-  // var data = text.split('*');
-
   try {    
-     // var msg = event.body;
-    // console.log(msg);
-    // msg = decodeURIComponent(msg);  
-    // var jsondata = '{"' + msg.replace(/&/g, '", "').replace(/=/g, '": "') + '"}';
-    // jsondata = JSON.parse(jsondata);
-    
-    // console.log('event data: => ',jsondata);
+
     const { service, option } = event.pathParameters
-    // console.log('Service url: ',service);
-    // console.log('Option url: ',option);
 
   //Lipa na Mpesa Callback
     if(service == 'lipanampesa' && option == 'success'){
@@ -300,6 +291,9 @@ module.exports.mpesacallback = async (event, context) => {
 
   return response;
 };
+
+
+
 
 
 // FUNCTIONS
@@ -361,8 +355,8 @@ async function getAccBalance(userMSISDN){
     console.info(`Account balance of ${cGoldBalance.toString()}`)
 
     return `END Your Account Balance is:
-             Kenya Shillings: ${cUSDBalance*100}`;   //Celo Dollar: ${cUSDBalance} cUSD`;
-             // Celo Gold: ${cGoldBalance} cGLD`;
+             Kenya Shillings: ${cUSDBalance*100}`;   //EOS Dollar: ${cUSDBalance} cUSD`;
+             // EOS Gold: ${cGoldBalance} cGLD`;
 }
 
 async function getAccDetails(userMSISDN){
@@ -411,7 +405,7 @@ async function USSDgetAccountDetails(phoneNumber){
     console.log('PhoneNumber: ', userMSISDN)
     let userId = await getRecipientId(userMSISDN)
     let accAddress = await getReceiverDetails(userId)
-    console.log('@Celo Address:',accAddress)
+    console.log('@EOS Address:',accAddress)
     // let userAddress = '0x9f5675c3b3af6e7b93f71f0c5821ae9b4155afcf';
     let url = await getAddressUrl(accAddress)
     console.log('Address: ',url);            
@@ -419,17 +413,31 @@ async function USSDgetAccountDetails(phoneNumber){
                 ...Account Address is: ${url}`;
 }
 
-
-async function transferUSDT(sender, senderprivkey, receiver, amount){
+async function transferEOS(senderId, recipientId, amount){
+    try{
+      let senderInfo = await getSenderDetails(senderId);
+      console.log('Sender Adress: ',  senderInfo.SenderAddress);
+      //console.log('Sender seedkey: ', senderInfo.seedKey);
+      let senderprivkey =  `${await generatePrivKey(senderInfo.seedKey)}`;
+      console.log('Sender Private Key: ',senderprivkey)
+      let receiverInfo = await getReceiverDetails(recipientId);
+      console.log('Receiver Adress: ', receiverInfo.receiverAddress);      
+      let cGLDAmount = `${amount*10000000}`;
+      console.log('cGOLD Amount: ', cGLDAmount)
+      sendcGold(`${senderInfo.SenderAddress}`, `${receiverInfo.receiverAddress}`, cGLDAmount, senderprivkey)
+    }
+    catch(err){console.log(err)}
+}
+  
+async function transfercUSD(sender, senderprivkey, receiver, amount){
   try{
     console.log('Sender Private Key: ',senderprivkey)    
     console.log('Sender Adress: ', sender);
+    // let receiver = receiverInfo.Item.publicAddress;
     console.log('Receiver Adress: ', receiver);
-
-    let cUSDAmount = amount*0.01;
-    console.log('cUSD Amount: ', cUSDAmount);
-
-    return sendEOS(`${sender}`, `${receiver}`, cUSDAmount, `${memo}`, `${senderprivkey}`);
+    let USDAmount = amount*0.01;
+    console.log('USD Amount: ', USDAmount);
+    return sendcUSD(`${sender}`, `${receiver}`, USDAmount, `${senderprivkey}`);
   }
   catch(err){console.log(err)}
 }
@@ -458,27 +466,6 @@ async function checkIfUserExists(userId){
      
   }  
 
-  async function createNewUser(userId, userMSISDN) {
-    return new Promise(resolve => {
-        // admin.auth().createUser({
-        //     uid: userId,
-        //     phoneNumber: userMSISDN
-        // })
-        // .then(function(userRecord) {
-        //     // See the UserRecord reference doc for the contents of userRecord.
-        //     console.log('Successfully created new user:', userRecord.uid);
-        //     //resolve (userRecord.uid);
-        // })
-        // .catch(function(error) {
-        //     console.log('Error creating new user:', error);
-        // });
-
-      
-
-    });  
-}
-
-
 function getPinFromUser(){
   return new Promise(resolve => {    
     let loginpin = randomstring.generate({ length: 5, charset: 'numeric' });
@@ -490,16 +477,14 @@ async function addUserDataToDB(userId, userMSISDN){
     let loginpin = await generateLoginPin(); 
     let mnemonic = await bip39.generateMnemonic(256);
     var enc_seed = await encrypt(mnemonic, userMSISDN, iv);
-    let publicAddress = await getPublicAddress(mnemonic);
-    console.log('Public Address: ', publicAddress);
-
-
+    let username = await getAccountName();
+    console.log('Public Address: ', username);
     const params = {
       TableName: process.env.ACCOUNTS_TABLE,
       Item: {
         userid: userId,
         seedKey: `${enc_seed}`,
-        publicAddress: `${publicAddress}`,
+        publicAddress: `${username}`,
         userLoginPin: loginpin,
       },
     };
@@ -507,17 +492,18 @@ async function addUserDataToDB(userId, userMSISDN){
     try {
       const data = await db.put(params).promise();
       console.log(data);
-      signupDeposit(publicAddress);
     } catch (err) {
       console.log(err);
     }
-
 }
 
-// const iv = crypto.randomBytes(16);
-
-// const iv = process.env.CRYPTO_IV_KEY;
-// const enc_decr_fn = process.env.ENC_DECR_ALGO;
+  //EOSJS FUNCTIONS
+  async function getAccountName(){
+    let username = randomstring.generate({ length: 7, charset: 'alphabetic' }).toLowerCase();
+      return new Promise(resolve => { 
+          resolve (`254ac${username}`);
+      });
+  }
 
 function getEncryptKey(userMSISDN){
   const hash_fn = process.env.KEY_HASH_ALGO;
@@ -543,7 +529,6 @@ function decrypt(text, userMSISDN, iv){
     resolve (dec)        
   });
 }
-  
 
 async function getSenderDetails(senderId){
   const params = {
@@ -562,7 +547,7 @@ async function getTxidUrl(txid){
 
 function getSentTxidUrl(txid){      
     return new Promise(resolve => {    
-        const sourceURL = `https://jungle.bloks.io/transaction/${txid}`;
+        const sourceURL = `${blockExplorerURL}/transaction/${txid}`;
         resolve (tinyURL.shorten(sourceURL))        
     });
 }
@@ -574,7 +559,7 @@ async function getAddressUrl(userAddress){
 
 function getUserAddressUrl(userAddress){
     return new Promise(resolve => {    
-        const sourceURL = `https://jungle.bloks.io/account/${userAddress}`;
+        const sourceURL = `${blockExplorerURL}/account/${userAddress}`;
         resolve (tinyURL.shorten(sourceURL));
       });   
 }
@@ -649,87 +634,35 @@ async function mpesa2customer(phoneNumber, amount){
 }
 
 
-  // MPESA CALLBACK POST / method
-// mpesaApp.post("/lipanampesa/success", async (req, res) => {
-//     // var options = { noColor: true };
-//     console.log('-----------LNM VALIDATION REQUEST-----------');
-//     console.log(prettyjson.render(req.body, options));
-//     console.log('-----------------------');
-//     res.send('Request Received'); 
-// });
-  
-//   mpesaApp.post("/lipanampesa/success", async (req, res) => {
-//     console.log('-----------LNM VALIDATION REQUEST-----------');
-//   	console.log(prettyjson.render(req.body, options));
-//   	console.log('-----------------------');
-//     // let mpesatxstatus = req.body.ResultCode
-//     // if (mpesatxstatus == 0){
-//     //     console.log('MpesaReceiptNumber: ', req.body.CallbackMetadata.MpesaReceiptNumber);
-//     // }else{
-//     //   console.log('transaction failed')
-//     // }
-//     console.log('Sender Phone Number: ', userMSISDN); 
-//     getSenderId(userMSISDN)
-//     .then(senderId=>{
-//       console.log('Sender ID: ', senderId);
-//       let escrowAddress = '0x9f5675c3B3Af6E7B93f71F0c5821AE9b4155aFCf';
-//       let escrowPrivKey = `f46fc1285b0240a093d311f5ed1f4aa00363b01d9f7c4c58fc2c368e1fb492f6`;
-//       // let myAddress = '0xF98F92a2B78C497F963666fd688620cd5095A251';
-//       checkIfExistsInDb(senderId)
-//       //let docData = await 
-//       let docRef = firestore.collection('accounts').doc(senderId)
-//       docRef.get().then((doc) => {
-//         let receiverAddress = `${doc.data().publicAddress}`;
-//         console.log('Amount to send: ',amount); 
-//         // let amount = `${data[1]*100000000}`;
-//         console.log('Receiver Address: ', receiverAddress)
-//         sendcGold(escrowAddress, receiverAddress, amount, escrowPrivKey)
-//       })
-//       // console.log('Sending to: ',publicAddress)
-//     })
-//     //let senderId = getSenderId(userMSISDN);          // sender = phoneNumber.substring(1); 
-//   	let message = {
-//   		"ResultCode": 0,
-//   		"ResultDesc": "Success",
-//   		"ThirdPartyTransID": "1234567890"
-//   	};
-  
-//   	res.json(message);
-//     // res.send('Request Received');  
-//   })
-  
-  
 
-  //EOSJS FUNCTIONS
-async function getPublicAddress(mnemonic){
-    let privateKey = await generatePrivKey(mnemonic);
+ //EOSJS FUNCTIONS
+ async function getAccountName(){
+  let username = randomstring.generate({ length: 7, charset: 'alphabetic' }).toLowerCase();
     return new Promise(resolve => { 
-        resolve (getAccAddress(getPublicKey(privateKey)));
+        resolve (`254ac${username}`);
     });
 }
 
+const hdkey = require('hdkey');
+const wif = require('wif');
+const ecc = require('eosjs-ecc');
+
 async function generatePrivKey(mnemonic){
   //EOSJS-ECC:::FUNCTION
-    const hdkey = require('hdkey');
-    const wif = require('wif');
-    const ecc = require('eosjs-ecc');
-    
-    const seed = bip39.mnemonicToSeed(mnemonic).toString();
-    const master = hdkey.fromMasterSeed(Buffer.from(seed, 'hex'));
-    const node = master.derive("m/44/194/0/0/13");
-    return wif.encode(128, node._privateKey, false);
+  const seed = bip39.mnemonicToSeed(mnemonic).toString();
+  const master = hdkey.fromMasterSeed(Buffer.from(seed, 'hex'));
+  const node = master.derive("m/44/194/0/0/13");
+  console.log("privateKey: "+wif.encode(128, node._privateKey, false));
+  return wif.encode(128, node._privateKey, false);
 }
 
 function getPublicKey(privateKey){
   //EOSJS-ECC:::FUNCTION
-    const hdkey = require('hdkey');
-    const wif = require('wif');
-    const ecc = require('eosjs-ecc');
-    
-    const seed = bip39.mnemonicToSeed(mnemonic).toString();
-    const master = hdkey.fromMasterSeed(Buffer.from(seed, 'hex'));
-    const node = master.derive("m/44/194/0/0/13");
-    return ecc.PublicKey(node._publicKey).toString();
+  const seed = bip39.mnemonicToSeed(mnemonic).toString();
+  const master = hdkey.fromMasterSeed(Buffer.from(seed, 'hex'));
+  const node = master.derive("m/44/194/0/0/13");
+  console.log("publicKey: "+ecc.PublicKey(node._publicKey).toString());
+  return ecc.PublicKey(node._publicKey).toString();
 }
 
 function getAccAddress(publicKey){
@@ -737,7 +670,7 @@ function getAccAddress(publicKey){
     pubKeyToAddress = pubToAddress(pubKeyToAddress).toString('hex');
     pubKeyToAddress = ensureLeading0x(pubKeyToAddress);
     pubKeyToAddress = toChecksumAddress(pubKeyToAddress)
-    return pubKeyToAddress;
+    return pubKeyToAddress;   
 }
 
 async function sendcGold(sender, receiver, amount, privatekey){
@@ -758,25 +691,77 @@ async function convertfromWei(value){
     return kit.web3.utils.fromWei(value.toString(), 'ether');
 }
 
-async function sendEOS(sender, receiver, amount, memo, privatekey){
-    const weiTransferAmount = kit.web3.utils.toWei(amount.toString(), 'ether')
-    const stableTokenWrapper = await kit.contracts.getStableToken()
+async function sendcUSD(sender, receiver, amount, privatekey){
 
-    const senderBalance = await stableTokenWrapper.balanceOf(sender) // In cUSD
-    if (amount > senderBalance) {        
-        console.error(`Not enough funds in sender balance to fulfill request: ${await convertfromWei(amount)} > ${await convertfromWei(senderBalance)}`)
-        return false
+    // const senderBalance = await stableTokenWrapper.balanceOf(sender) // In cUSD
+    // if (amount > senderBalance) {        
+    //     console.error(`Not enough funds in sender balance to fulfill request: ${await convertfromWei(amount)} > ${await convertfromWei(senderBalance)}`)
+    //     return false
+    // }
+    // console.info(`sender balance of ${await convertfromWei(senderBalance)} cUSD is sufficient to fulfill ${await convertfromWei(weiTransferAmount)} cUSD`)
+    const signatureProvider = new JsSignatureProvider([privatekey]);
+    const api = new Api({ rpc, signatureProvider, textDecoder: new TextDecoder(), textEncoder: new TextEncoder() });
+
+    let result = '';
+    try {
+        result = await api.transact({
+            actions: [{
+                account: 'eosio.token',
+                name: 'transfer',
+                authorization: [{
+                    actor: sender,
+                    permission: 'active',
+                }],
+                data: {
+                    from: sender,
+                    to: receiver,
+                    quantity: amount,
+                    memo: 'tokens from kotani',
+                },
+            }]
+        }, {
+            blocksBehind: 3,
+            expireSeconds: 30,
+        });
+        console.dir(result);   
+    } catch (e) {
+        console.log('\nCaught exception: ' + e);
+        if (e instanceof RpcError)
+        console.log(JSON.stringify(e.json, null, 2));
     }
-    console.info(`sender balance of ${await convertfromWei(senderBalance)} cUSD is sufficient to fulfill ${await convertfromWei(weiTransferAmount)} cUSD`)
+    return result;
+    // return hash
+}
 
-    kit.addAccount(privatekey)
-    const stableTokenContract = await kit._web3Contracts.getStableToken()
-    const txo = await stableTokenContract.methods.transfer(receiver, weiTransferAmount)
-    const tx = await kit.sendTransactionObject(txo, { from: sender })
-    console.info(`Sent tx object`)
-    const hash = await tx.getHash()
-    console.info(`Transferred ${amount} dollars to ${receiver}. Hash: ${hash}`)
-    return hash
+async function tokentransfer(sender, receiver, amount, privatekey){
+  let result = '';
+  try {
+      result = await api.transact({
+          actions: [{
+              account: 'eosio.token',
+              name: 'transfer',
+              authorization: [{
+                  actor: sender,
+                  permission: 'active',
+              }],
+              data: {
+                  from: sender,
+                  to: receiver,
+                  quantity: amount,
+                  memo: 'tokens from kotani',
+              },
+          }]
+      }, {
+          blocksBehind: 3,
+          expireSeconds: 30,
+      });
+      console.dir(result);   
+  } catch (e) {
+      console.log('\nCaught exception: ' + e);
+      if (e instanceof RpcError)
+      console.log(JSON.stringify(e.json, null, 2));
+  }
+  return result;
 }
 
 //working
