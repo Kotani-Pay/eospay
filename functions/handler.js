@@ -40,21 +40,6 @@ const rpc = new JsonRpc(nodeUrl, { fetch });
 const api = new Api({ rpc, signatureProvider, textDecoder: new TextDecoder(), textEncoder: new TextEncoder() });
 
 
-//EOSJS-ECC:::FUNCTION
-const hdkey = require('hdkey');
-const wif = require('wif');
-const ecc = require('eosjs-ecc');
-
-const mnemonic = 'fun swamp jump history obvious scare struggle deputy cannon village buzz state power play expose moral million lift gravity size chalk grocery scout toss';
-const seed = bip39.mnemonicToSeed(mnemonic).toString();
-const master = hdkey.fromMasterSeed(Buffer.from(seed, 'hex'));
-const node = master.derive("m/44/194/0/0/13");
-
-console.log("publicKey: "+ecc.PublicKey(node._publicKey).toString());
-console.log("privateKey: "+wif.encode(128, node._privateKey, false));
-console.log("chainCode: "+wif.encode(239, node.chainCode, false));
-
-
 module.exports.eospay = async (event, context) => {
   var msg = event.body;
   msg = decodeURIComponent(msg);  
@@ -724,16 +709,27 @@ async function getPublicAddress(mnemonic){
 }
 
 async function generatePrivKey(mnemonic){
-  const seed = bip39.mnemonicToSeed(mnemonic).toString();
-  const master = hdkey.fromMasterSeed(Buffer.from(seed, 'hex'));
-  return wif.encode(128, node._privateKey, false);
+  //EOSJS-ECC:::FUNCTION
+    const hdkey = require('hdkey');
+    const wif = require('wif');
+    const ecc = require('eosjs-ecc');
+    
+    const seed = bip39.mnemonicToSeed(mnemonic).toString();
+    const master = hdkey.fromMasterSeed(Buffer.from(seed, 'hex'));
+    const node = master.derive("m/44/194/0/0/13");
+    return wif.encode(128, node._privateKey, false);
 }
 
 function getPublicKey(privateKey){
-  const seed = bip39.mnemonicToSeed(mnemonic).toString();
-  const master = hdkey.fromMasterSeed(Buffer.from(seed, 'hex'));
-  const node = master.derive("m/44/194/0/0/13");
-  return ecc.PublicKey(node._publicKey).toString();
+  //EOSJS-ECC:::FUNCTION
+    const hdkey = require('hdkey');
+    const wif = require('wif');
+    const ecc = require('eosjs-ecc');
+    
+    const seed = bip39.mnemonicToSeed(mnemonic).toString();
+    const master = hdkey.fromMasterSeed(Buffer.from(seed, 'hex'));
+    const node = master.derive("m/44/194/0/0/13");
+    return ecc.PublicKey(node._publicKey).toString();
 }
 
 function getAccAddress(publicKey){
