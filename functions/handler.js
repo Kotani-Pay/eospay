@@ -1,14 +1,10 @@
 'use strict';
 
 const AWS = require('aws-sdk');
-// AWS.config.update({ region: "eu-central-1"});
 const db = new AWS.DynamoDB.DocumentClient();
-
 const PNF = require('google-libphonenumber').PhoneNumberFormat;
 const phoneUtil = require('google-libphonenumber').PhoneNumberUtil.getInstance();
-
 const Mpesa = require('mpesa-node');
-
 const mpesaApi = new Mpesa({
     consumerKey: process.env.MPESA_CONSUMER_KEY,
     consumerSecret: process.env.MPESA_CONSUMER_SECRET ,
@@ -19,40 +15,28 @@ const mpesaApi = new Mpesa({
     lipaNaMpesaShortPass: process.env.MPESA_LNM_SHORTPASS,
     securityCredential: process.env.MPESA_SECURITY_CREDS
 });
-
 const mpesaCallbackURL = process.env.MPESA_CALLBACK_URL;
-
 const prettyjson = require('prettyjson');
 var options = { noColor: true };
-
 var randomstring = require("randomstring");
 var tinyURL = require('tinyurl');
-// var twilio = require('twilio');
-
 const iv = process.env.CRYPTO_IV_KEY;
 const enc_decr_fn = process.env.ENC_DECR_ALGO;
 const  phone_hash_fn = process.env.MSISDN_HASH_ALGO;
 
 // AFRICASTALKING API
-const AT_credentials = {
-  apiKey: process.env.AT_SMS_API_KEY,
-  username: process.env.AT_API_USERNAME
-}
-
-// const AfricasTalking = require('africastalking')(AT_credentials);
-// const sms = AfricasTalking.SMS;
+const AT_credentials = { apiKey: process.env.AT_SMS_API_KEY, username: process.env.AT_API_USERNAME }
 const AfricasTalking = require('./AT/africastalking')(AT_credentials);
 const sms = AfricasTalking.SMS;
 
 // EOSIO NETWORK
 const { Api, JsonRpc, RpcError } = require('eosjs');
-const { JsSignatureProvider } = require('eosjs/dist/eosjs-jssig');      // development only
-const fetch = require('node-fetch');                                    // node only; not needed in browsers
-const { TextEncoder, TextDecoder } = require('util');                   // node only; native TextEncoder/Decoder
-
+const { JsSignatureProvider } = require('eosjs/dist/eosjs-jssig');
+const fetch = require('node-fetch');
+const { TextEncoder, TextDecoder } = require('util');
 const signatureProvider = new JsSignatureProvider([sprivateKey]);
-
-const rpc = new JsonRpc('https://jungle2.cryptolions.io:443', { fetch });
+const nodeUrl = process.env.EOS_NODE_URL;
+const rpc = new JsonRpc(nodeUrl, { fetch });
 const api = new Api({ rpc, signatureProvider, textDecoder: new TextDecoder(), textEncoder: new TextEncoder() });
 
 
